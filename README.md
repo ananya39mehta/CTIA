@@ -20,20 +20,29 @@ The system supports:
 
 ## 📂 Project Structure
 
+```text
 ctia/
-│── app/ # Core FastAPI app (main.py, schema.py, crypto.py)
-│── tests/ # Unit & end-to-end tests
-│── secrets/ # Ed25519 keys (auto-generated on first run)
-│── ctia_fsm.dot # FSM diagram (Graphviz source)
-│── fsm.png # FSM diagram (rendered)
-│── requirements.txt # Python dependencies
-│── Dockerfile # Container definition
-│── docker-compose.yml # Compose setup for local dev
-│── setup.sh # Quick setup script
-│── README.md # This file
-│── LICENSE # MIT License
+│── app/                # Core FastAPI app (main.py, schema.py, crypto.py)
+│   │── __init__.py
+│   │── main.py         # FastAPI entrypoint (issue/redeem endpoints)
+│   │── schema.py       # Pydantic models for ticket structure
+│   │── crypto.py       # Ed25519 signing & verification helpers
+│
+│── tests/              # Unit & end-to-end tests
+│   │── test_end2end.py
+│
+│── secrets/            # Auto-generated keys (ed25519_sk.hex, ed25519_pk.hex)
+│
+│── ctia_fsm.dot        # FSM definition (Graphviz source)
+│── fsm.png             # Rendered FSM diagram
+│── requirements.txt    # Python dependencies (frozen)
+│── Dockerfile          # Container definition
+│── docker-compose.yml  # Compose setup for local dev
+│── setup.sh            # Quick setup script
+│── README.md           # Documentation
+│── LICENSE             # MIT License
 
-
+```
 ---
 
 ## ⚡ Quickstart
