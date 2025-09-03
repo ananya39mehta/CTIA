@@ -1,0 +1,16 @@
+digraph CTIA_FSM {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  Idle -> Request_Received [label="API/x402 request"];
+  Request_Received -> Validated [label="validate request"];
+  Validated -> Generating_Tickets [label="generate batch"];
+  Generating_Tickets -> Signing_Tickets [label="canonicalize & sign"];
+  Signing_Tickets -> Packaging_Envelope [label="encrypt VPI & envelope"];
+  Packaging_Envelope -> Issued [label="send envelope(s)"];
+  Issued -> Awaiting_Redemption [label="tickets in hands of recipient"];
+  Awaiting_Redemption -> Validating [label="redeem(preimage/QoS)"];
+  Validating -> Settled [label="valid -> decrypt VPI & mock settle"];
+  Validating -> Rejected [label="invalid -> reject"];
+  Settled -> Idle [label="record & close"];
+  Rejected -> Idle [label="record & close"];
+}
