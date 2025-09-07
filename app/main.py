@@ -1,13 +1,13 @@
 from fastapi import FastAPI
 from app.schemas import TicketRequest, TicketResponse
-from app.crypto import generate_ticket, verify_ticket
+from app.crypto import generate_ticket, verify_ticket, is_winner
 import hashlib
 
 app = FastAPI(title="CTIA V1", description="Cryptographic Ticket Issuer Agent")
 
-# Temporary in-memory store for tickets (will move to DB later)
+# Temporary in-memory store for tickets and secrets (prototype)
 tickets_db = {}
-secrets_db = {}  # stores secrets for redemption (not shared with merchant)
+secrets_db = {}
 
 @app.get("/")
 def root():
@@ -15,10 +15,12 @@ def root():
 
 @app.post("/issue_ticket", response_model=TicketResponse)
 def issue_ticket(request: TicketRequest):
-    # Generate a real signed ticket
-    ticket, secret = generate_ticket(request.value, "recipient@upi")
+    # Generate a real signed ticket with optional probability
+    ticket, secret = generate_ticket(request.value, "recipient@upi", request.prob_p_win)
 
+    # Add status field required by schema
     ticket["status"] = "issued"
+
     tickets_db[ticket["ticket_id"]] = ticket
     secrets_db[ticket["ticket_id"]] = secret
 
@@ -43,10 +45,21 @@ def redeem_ticket(ticket_id: str, preimage: str):
     if ticket.get("status") == "redeemed":
         return {"error": "Ticket already redeemed"}
 
-    ticket["status"] = "redeemed"
-    return {"message": f"Ticket {ticket_id} redeemed successfully"}
+    # Deterministic probabilistic check
+    winner = is_winner(ticket, preimage)
 
-# ⚠️ Debug-only: get the secret (preimage) for a ticket
+    # Mark redeemed (we keep status; real settlement only if winner)
+    ticket["status"] = "redeemed"
+    ticket["winner"] = winner
+
+    if winner:
+        # In prototype: simulate settlement
+        return {"message": f"Ticket {ticket_id} redeemed and is a WINNER. Initiating settlement.", "winner": True, "payout": ticket["value"]}
+    else:
+        # Loser: no settlement on ledger; still mark redeemed to avoid replay
+        return {"message": f"Ticket {ticket_id} redeemed but NOT a winner. No settlement required.", "winner": False}
+    
+# Debug-only: get the secret (preimage) for a ticket (testing only)
 @app.get("/get_secret/{ticket_id}")
 def get_secret(ticket_id: str):
     if ticket_id not in secrets_db:
