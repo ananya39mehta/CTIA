@@ -1,67 +1,106 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app import models
+from app.db import SessionLocal, init_db
 from app.schemas import TicketRequest, TicketResponse
 from app.crypto import generate_ticket, verify_ticket, is_winner
 import hashlib
 
-app = FastAPI(title="CTIA V1", description="Cryptographic Ticket Issuer Agent")
+# Initialize DB (create tables)
+init_db()
 
-# Temporary in-memory store for tickets and secrets (prototype)
-tickets_db = {}
-secrets_db = {}
+app = FastAPI(title="CTIA V1", description="Cryptographic Ticket Issuer Agent with SQLite persistence")
+
+# Dependency for DB sessions
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.get("/")
 def root():
     return {"message": "CTIA is running 🚀"}
 
 @app.post("/issue_ticket", response_model=TicketResponse)
-def issue_ticket(request: TicketRequest):
-    # Generate a real signed ticket with optional probability
-    ticket, secret = generate_ticket(request.value, "recipient@upi", request.prob_p_win)
+def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
+    # Generate a real signed ticket and secret (preimage)
+    ticket_dict, secret = generate_ticket(request.value, "recipient@upi", request.prob_p_win)
 
-    # Add status field required by schema
-    ticket["status"] = "issued"
+    # Persist the ticket into DB
+    db_ticket = models.Ticket(
+        ticket_id=ticket_dict["ticket_id"],
+        value=ticket_dict["value"],
+        prob_p_win=float(ticket_dict.get("prob_p_win", 0.001)),
+        lock_hash=ticket_dict["lock_hash"],
+        vpi_enc=ticket_dict["vpi_enc"],
+        signature=ticket_dict["signature"],
+        status="issued"
+    )
+    db.add(db_ticket)
+    db.commit()
+    db.refresh(db_ticket)
 
-    tickets_db[ticket["ticket_id"]] = ticket
-    secrets_db[ticket["ticket_id"]] = secret
+    # Persist the secret for testing/debug (remove in production)
+    db_secret = models.Secret(ticket_id=db_ticket.ticket_id, secret=secret)
+    db.add(db_secret)
+    db.commit()
 
-    return ticket
+    # Return a response matching TicketResponse schema
+    return {
+        "ticket_id": db_ticket.ticket_id,
+        "value": db_ticket.value,
+        "status": db_ticket.status,
+        "prob_p_win": db_ticket.prob_p_win,
+        "lock_hash": db_ticket.lock_hash,
+        "vpi_enc": db_ticket.vpi_enc,
+        "signature": db_ticket.signature,
+    }
 
 @app.post("/redeem_ticket")
-def redeem_ticket(ticket_id: str, preimage: str):
-    if ticket_id not in tickets_db:
-        return {"error": "Ticket not found"}
+def redeem_ticket(ticket_id: str, preimage: str, db: Session = Depends(get_db)):
+    # Fetch ticket
+    db_ticket = db.query(models.Ticket).filter_by(ticket_id=ticket_id).first()
+    if not db_ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
 
-    ticket = tickets_db[ticket_id]
+    if db_ticket.status == "redeemed":
+        raise HTTPException(status_code=400, detail="Ticket already redeemed")
 
-    # Verify Ed25519 signature
-    if not verify_ticket(ticket):
-        return {"error": "Invalid ticket signature"}
+    # Reconstruct ticket dict for verification
+    ticket_for_verify = {
+        "ticket_id": db_ticket.ticket_id,
+        "value": db_ticket.value,
+        "lock_hash": db_ticket.lock_hash,
+        "vpi_enc": db_ticket.vpi_enc,
+        "prob_p_win": db_ticket.prob_p_win,
+        "signature": db_ticket.signature
+    }
 
-    # Verify preimage against lock_hash
-    lock_hash = hashlib.sha256(preimage.encode()).hexdigest()
-    if lock_hash != ticket["lock_hash"]:
-        return {"error": "Invalid preimage (cannot unlock ticket)"}
+    # Verify signature
+    if not verify_ticket(ticket_for_verify):
+        raise HTTPException(status_code=400, detail="Invalid ticket signature")
 
-    if ticket.get("status") == "redeemed":
-        return {"error": "Ticket already redeemed"}
+    # Verify preimage
+    if hashlib.sha256(preimage.encode()).hexdigest() != db_ticket.lock_hash:
+        raise HTTPException(status_code=400, detail="Invalid preimage (cannot unlock ticket)")
 
-    # Deterministic probabilistic check
-    winner = is_winner(ticket, preimage)
+    # Determine winner deterministically
+    winner = is_winner(ticket_for_verify, preimage)
 
-    # Mark redeemed (we keep status; real settlement only if winner)
-    ticket["status"] = "redeemed"
-    ticket["winner"] = winner
+    # Record redemption
+    redemption = models.Redemption(ticket_id=db_ticket.ticket_id, preimage=preimage, winner=winner)
+    db.add(redemption)
+
+    # Mark ticket redeemed (prevents replay)
+    db_ticket.status = "redeemed"
+    db.commit()
+    db.refresh(db_ticket)
 
     if winner:
-        # In prototype: simulate settlement
-        return {"message": f"Ticket {ticket_id} redeemed and is a WINNER. Initiating settlement.", "winner": True, "payout": ticket["value"]}
+        return {"message": f"Ticket {ticket_id} redeemed and is a WINNER. Initiating settlement.", "winner": True, "payout": db_ticket.value}
     else:
-        # Loser: no settlement on ledger; still mark redeemed to avoid replay
         return {"message": f"Ticket {ticket_id} redeemed but NOT a winner. No settlement required.", "winner": False}
-    
-# Debug-only: get the secret (preimage) for a ticket (testing only)
-@app.get("/get_secret/{ticket_id}")
-def get_secret(ticket_id: str):
-    if ticket_id not in secrets_db:
-        return {"error": "Secret not found"}
-    return {"ticket_id": ticket_id, "secret": secrets_db[ticket_id]}
+
+
