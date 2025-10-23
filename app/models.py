@@ -2,7 +2,8 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Foreig
 from sqlalchemy.orm import relationship
 from .db import Base
 from datetime import datetime
-
+from sqlalchemy import Text
+import json
 class Ticket(Base):
     __tablename__ = "tickets"
     id = Column(Integer, primary_key=True, index=True)
@@ -35,3 +36,19 @@ class Redemption(Base):
     redeemed_at = Column(DateTime, default=datetime.utcnow)
 
     ticket = relationship("Ticket", back_populates="redemptions")
+
+
+
+class DecisionLog(Base):
+    __tablename__ = "decision_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(String, ForeignKey("tickets.ticket_id"), nullable=True, index=True)
+    decision_time = Column(DateTime, default=datetime.utcnow)
+    explanation = Column(Text, nullable=False)  # store JSON string
+
+    # optional relationship back to ticket
+    ticket = relationship("Ticket", back_populates="decision_logs")
+
+# add relationship on Ticket
+if not hasattr(Ticket, "decision_logs"):
+    Ticket.decision_logs = relationship("DecisionLog", back_populates="ticket", cascade="all, delete-orphan")

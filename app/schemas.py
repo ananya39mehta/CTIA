@@ -1,10 +1,11 @@
 from pydantic import BaseModel
 from typing import Optional
 
+# Request schema
 class TicketRequest(BaseModel):
     value: int
-    prob_p_win: Optional[float] = 0.001  # optional when client can set priority
 
+# Response schema
 class TicketResponse(BaseModel):
     ticket_id: str
     value: int
@@ -13,3 +14,8 @@ class TicketResponse(BaseModel):
     lock_hash: str
     vpi_enc: str
     signature: str
+    explanation: Optional[dict] = None  # Added for explainable AI responses
+
+    class Config:
+        from_attributes = True
+

@@ -1,0 +1,80 @@
+[
+    {
+        "ticket_id": "c8ca0795-8783-4610-88d7-7d99f1ae47ea",
+        "value": 900,
+        "prob_p_win": 0.013073940000000001,
+        "timestamp": 1761204052.431501,
+        "inputs": {
+            "network_load": 0.2,
+            "relay_reputation": 0.85,
+            "budget_utilization": 0.1,
+            "recent_win_rate": 0.01
+        },
+        "steps": [
+            {
+                "feature": "network_load",
+                "value": 0.2,
+                "effect": "multiply prob by 0.880 (higher load -> lower prob)"
+            },
+            {
+                "feature": "relay_reputation",
+                "value": 0.85,
+                "effect": "multiply prob by 1.775 (higher rep -> higher prob)"
+            },
+            {
+                "feature": "budget_utilization",
+                "value": 0.1,
+                "effect": "multiply prob by 0.930 (higher utilization -> lower prob)"
+            },
+            {
+                "feature": "recent_win_rate",
+                "value": 0.01,
+                "effect": "multiply prob by 0.900 (higher recent wins -> lower prob)"
+            }
+        ],
+        "final_prob": 0.013073940000000001
+    },
+    {
+        "ticket_id": "ec71870b-1a1f-4d18-bffa-cf2f273e011d",
+        "inputs": {
+            "network_load": 0.3,
+            "relay_reputation": 0.8,
+            "budget_utilization": 0.2,
+            "recent_win_rate": 0.05
+        },
+        "prob_p_win": 0.005994200000000001,
+        "explanation": {
+            "timestamp": 1761224420.3000023,
+            "inputs": {
+                "network_load": 0.3,
+                "relay_reputation": 0.8,
+                "budget_utilization": 0.2,
+                "recent_win_rate": 0.05
+            },
+            "base_prob": 0.01,
+            "final_prob": 0.005994200000000001,
+            "steps": [
+                {
+                    "feature": "network_load",
+                    "value": 0.3,
+                    "effect": "multiply prob by 0.820 (higher load -> lower prob)"
+                },
+                {
+                    "feature": "relay_reputation",
+                    "value": 0.8,
+                    "effect": "multiply prob by 1.700 (higher rep -> higher prob)"
+                },
+                {
+                    "feature": "budget_utilization",
+                    "value": 0.2,
+                    "effect": "multiply prob by 0.860 (higher utilization -> lower prob)"
+                },
+                {
+                    "feature": "recent_win_rate",
+                    "value": 0.05,
+                    "effect": "multiply prob by 0.500 (higher recent wins -> lower prob)"
+                }
+            ]
+        }
+    }
+]
