@@ -1,0 +1,17 @@
+{
+    "best_model": "random_forest",
+    "rmse": 0.0005058584198264012,
+    "mae": 0.0003709328620243146,
+    "r2": 0.9746140257415227,
+    "cv_r2": 0.9595842124102922,
+    "timestamp": "2025-10-24T06:38:56.165032",
+    "explain": {
+        "method": "shap",
+        "feature_importance": {
+            "network_load": 0.0002221039533809444,
+            "relay_reputation": 0.0006432359104239249,
+            "budget_utilization": 0.0003405398664917729,
+            "recent_win_rate": 0.0025491554182910142
+        }
+    }
+}

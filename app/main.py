@@ -4,7 +4,8 @@ from app import models
 from app.db import SessionLocal, init_db
 from app.schemas import TicketRequest, TicketResponse
 from app.crypto import generate_ticket, verify_ticket, is_winner
-from app.agent import decide_probability
+from app.agent_ml import decide_probability
+
 import hashlib, json, os
 
 # Initialize DB

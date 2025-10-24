@@ -76,5 +76,83 @@
                 }
             ]
         }
+    },
+    {
+        "ticket_id": "363a2d0e-df08-4f72-b5d0-4711a94940f5",
+        "inputs": {
+            "network_load": 0.3,
+            "relay_reputation": 0.8,
+            "budget_utilization": 0.2,
+            "recent_win_rate": 0.05
+        },
+        "prob_p_win": 0.009990964765405605,
+        "explanation": {
+            "method": "ml_model",
+            "final_prob": 0.009990964765405605,
+            "inputs": {
+                "network_load": 0.3,
+                "relay_reputation": 0.8,
+                "budget_utilization": 0.2,
+                "recent_win_rate": 0.05
+            },
+            "feature_importance": {
+                "network_load": 0.00011164302434313516,
+                "relay_reputation": 0.0010502870463166615,
+                "budget_utilization": 0.0005078446640440654,
+                "recent_win_rate": 0.0033014887852179323
+            }
+        }
+    },
+    {
+        "ticket_id": "99297817-114f-478f-8848-52c11e2a7030",
+        "inputs": {
+            "network_load": 0.3,
+            "relay_reputation": 0.8,
+            "budget_utilization": 0.2,
+            "recent_win_rate": 0.05
+        },
+        "prob_p_win": 0.009990964765405605,
+        "explanation": {
+            "method": "ml_model",
+            "final_prob": 0.009990964765405605,
+            "inputs": {
+                "network_load": 0.3,
+                "relay_reputation": 0.8,
+                "budget_utilization": 0.2,
+                "recent_win_rate": 0.05
+            },
+            "feature_importance": {
+                "network_load": 0.00011164302434313516,
+                "relay_reputation": 0.0010502870463166615,
+                "budget_utilization": 0.0005078446640440654,
+                "recent_win_rate": 0.0033014887852179323
+            },
+            "steps": [
+                {
+                    "feature": "recent_win_rate",
+                    "value": 0.05,
+                    "effect": "higher recent_win_rate tends to decrease prob",
+                    "importance": 0.0033014887852179323
+                },
+                {
+                    "feature": "relay_reputation",
+                    "value": 0.8,
+                    "effect": "higher relay_reputation tends to increase prob",
+                    "importance": 0.0010502870463166615
+                },
+                {
+                    "feature": "budget_utilization",
+                    "value": 0.2,
+                    "effect": "higher budget_utilization tends to decrease prob",
+                    "importance": 0.0005078446640440654
+                },
+                {
+                    "feature": "network_load",
+                    "value": 0.3,
+                    "effect": "higher network_load tends to decrease prob",
+                    "importance": 0.00011164302434313516
+                }
+            ]
+        }
     }
 ]
