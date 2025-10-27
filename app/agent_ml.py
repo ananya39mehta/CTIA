@@ -1,118 +1,152 @@
-"""
-app/agent_ml.py
-- Loads models/probability_model.pkl (joblib)
-- Exposes decide_probability(inputs: dict) -> (prob_p_win, explanation_dict)
-- explanation_dict: { method, final_prob, inputs, feature_importance }
-"""
-
-import os, json
+# app/agent_ml.py
+import os
+import json
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
+import shap
+import matplotlib.pyplot as plt
+import base64
+from datetime import datetime
+from pathlib import Path
 
-MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+# ----------------------------
+# PATH SETUP
+# ----------------------------
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 MODEL_PATH = os.path.join(MODELS_DIR, "probability_model.pkl")
 INFO_PATH = os.path.join(MODELS_DIR, "model_info.json")
 
-# Try to load model
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model not found at {MODEL_PATH}. Run notebooks/eda_and_train.py first.")
+# ----------------------------
+# MODEL LOADING
+# ----------------------------
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}. Run notebooks/eda_and_train.py first.")
+    return joblib.load(MODEL_PATH)
 
-model = joblib.load(MODEL_PATH)
+model = load_model()
 
-# Try to load model_info for feature importances, fallback to empty
+# Load model info metadata
 if os.path.exists(INFO_PATH):
-    with open(INFO_PATH) as f:
+    with open(INFO_PATH, "r") as f:
         model_info = json.load(f)
 else:
     model_info = {}
 
-# Optional SHAP lazy importer (we compute shap explanations per-sample if shap installed)
+# ----------------------------
+# SHAP EXPLAINER SETUP
+# ----------------------------
 try:
-    import shap
+    explainer = shap.Explainer(model)
     SHAP_AVAILABLE = True
-    # create explainer if model is tree-based or pipeline: shap.Explainer can wrap the model
-    try:
-        explainer = shap.Explainer(model)
-    except Exception:
-        explainer = None
 except Exception:
-    SHAP_AVAILABLE = False
     explainer = None
+    SHAP_AVAILABLE = False
 
-
+# ----------------------------
+# HELPERS
+# ----------------------------
 def _to_dataframe(inputs: dict):
-    # ensure columns order matches training columns used in eda_and_train.py
     cols = ["network_load", "relay_reputation", "budget_utilization", "recent_win_rate"]
     return pd.DataFrame([{c: float(inputs.get(c, 0.0)) for c in cols}])
 
+def _clamp_prob(p: float) -> float:
+    p = float(p)
+    return max(1e-6, min(p, 0.5))
 
-def decide_probability(inputs: dict):
+# ----------------------------
+# MAIN DECISION + EXPLAINABILITY
+# ----------------------------
+def decide_probability(inputs: dict, telemetry: dict = None):
     """
-    Return: (prob_p_win: float, explanation: dict)
-    Normalized explanation contains:
-      - method: "ml_model"
-      - final_prob: float
-      - inputs: dict
-      - feature_importance: {feature: importance}
-      - steps: [{feature, value, effect}]
+    Predict probability using trained ML model and generate SHAP explainability plot.
+    telemetry (optional): pass live metrics from TelemetryService
     """
     X = _to_dataframe(inputs)
-
-    # predict
-    try:
-        prob = float(model.predict(X)[0])
-    except Exception:
-        prob = float(model.predict(X.values)[0])
+    prob_p_win = float(model.predict(X)[0])
+    prob_p_win = _clamp_prob(prob_p_win)
 
     explanation = {
         "method": "ml_model",
-        "final_prob": prob,
         "inputs": inputs,
-        "feature_importance": {}
+        "final_prob": prob_p_win,
+        "feature_importance": {},
+        "steps": [],
+        "plot_path": None,
+        "plot_base64": None,
+        "timestamp": datetime.utcnow().isoformat(),
     }
 
-    # SHAP path: per-sample SHAP values -> abs contributions
+    # Include telemetry context if provided
+    if telemetry:
+        explanation["telemetry"] = telemetry
+
+    # ----------------------------
+    # SHAP Explainability
+    # ----------------------------
     if SHAP_AVAILABLE and explainer is not None:
         try:
-            sv = explainer(X)  # shap output
-            # shap values may be structured; get per-feature absolute contributions
-            shap_vals = sv.values[0] if hasattr(sv, "values") else np.array(sv)[0]
-            feature_names = X.columns.tolist()
-            feat_imp = {f: float(abs(v)) for f, v in zip(feature_names, shap_vals)}
-            explanation["feature_importance"] = feat_imp
-        except Exception:
-            explanation["feature_importance"] = model_info.get("explain", {}).get("feature_importance", {})
+            shap_values = explainer(X)
+            shap_dir = Path(BASE_DIR) / "docs" / "shap_explanations"
+            shap_dir.mkdir(parents=True, exist_ok=True)
+            plot_path = shap_dir / f"shap_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}.png"
+
+            # Plot waterfall
+            plt.figure()
+            shap.plots.waterfall(shap_values[0], show=False)
+            plt.title("Per-ticket SHAP Explanation")
+            plt.savefig(plot_path, bbox_inches="tight")
+            plt.close()
+
+            # Base64 encode image for Swagger
+            with open(plot_path, "rb") as f:
+                img_b64 = base64.b64encode(f.read()).decode()
+
+            # Feature importance
+            shap_imp = dict(zip(X.columns, np.abs(shap_values.values[0]).tolist()))
+
+            # Generate human-readable reasoning
+            steps = []
+            contributions = shap_values.values[0]
+            sorted_idx = np.argsort(np.abs(contributions))[::-1]
+
+            for idx in sorted_idx:
+                feature = X.columns[idx]
+                value = inputs[feature]
+                contrib = contributions[idx]
+                if contrib > 0:
+                    effect = "increasing the win probability"
+                else:
+                    effect = "decreasing the win probability"
+
+                steps.append({
+                    "feature": feature,
+                    "value": round(value, 3),
+                    "effect": effect,
+                    "contribution": float(contrib),
+                    "importance": shap_imp[feature],
+                })
+
+            # Natural-language summary
+            top_feats = [s["feature"] for s in steps[:2]]
+            direction = "low" if prob_p_win < 0.02 else "moderate" if prob_p_win < 0.1 else "high"
+            summary = f"The model predicts a {direction} win probability mainly influenced by {top_feats[0]} and {top_feats[1]}."
+
+            # Update explanation
+            explanation.update({
+                "feature_importance": shap_imp,
+                "steps": steps,
+                "summary": summary,
+                "plot_path": str(plot_path),
+                "plot_base64": img_b64
+            })
+
+        except Exception as e:
+            explanation["error"] = f"SHAP explainability failed: {str(e)}"
+
     else:
-        # fallback to saved permutation importances / metadata
-        explanation["feature_importance"] = model_info.get("explain", {}).get("feature_importance", {})
+        explanation["note"] = "SHAP not available; using baseline-only prediction."
 
-    # Build human-readable 'steps' from feature_importance and inputs
-    steps = []
-    for f, imp in explanation["feature_importance"].items():
-        val = float(inputs.get(f, 0.0))
-        # craft a simple "effect" sentence using sign of importance and value
-        # note: shap/permutation importance are non-negative; use value -> direction heuristics
-        if f == "network_load":
-            effect = f"higher {f} tends to {'decrease' if val>0.2 else 'slightly decrease' if val>0.1 else 'have minor effect'} prob"
-        elif f == "relay_reputation":
-            effect = f"higher {f} tends to increase prob" if val > 0.5 else f"{f} low -> lower prob"
-        elif f == "budget_utilization":
-            effect = f"higher {f} tends to decrease prob"
-        elif f == "recent_win_rate":
-            effect = f"higher {f} tends to decrease prob"
-        else:
-            effect = f"{f} effect (value={val})"
-        steps.append({
-            "feature": f,
-            "value": val,
-            "effect": effect,
-            "importance": float(imp)
-        })
-
-    # Sort steps by importance desc (optional)
-    steps = sorted(steps, key=lambda s: -s.get("importance", 0.0))
-
-    # Attach steps and return
-    explanation["steps"] = steps
-    return prob, explanation
+    return prob_p_win, explanation
