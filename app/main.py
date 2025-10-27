@@ -6,10 +6,15 @@ from app.db import SessionLocal, init_db
 from app.schemas import TicketRequest, TicketResponse
 from app.crypto import generate_ticket, verify_ticket, is_winner
 from app.agent_ml import decide_probability
-from app.telemetry import get_telemetry  # NEW IMPORT
+from app.telemetry import get_telemetry 
 import hashlib, json, os
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from app.db import Base
+from datetime import datetime, timezone   # ✅ add this
+
 from fastapi.responses import HTMLResponse
-from datetime import datetime
+from datetime import datetime, UTC, timezone
 init_db()
 app = FastAPI(title="CTIA v2.0 ML", description="CTIA with ML-based explainable probability")
 
@@ -30,11 +35,9 @@ def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
     Issue a probabilistic ticket with ML-determined win probability.
     Uses real-time telemetry for dynamic decision-making.
     """
-    # Get real telemetry
     telemetry_service = get_telemetry(db)
     inputs = telemetry_service.get_all_metrics()
-    
-    # Log telemetry for debugging (FIXED: show as decimals matching ML input)
+
     print(f"\n{'='*60}")
     print(f"📊 Issuing Ticket - Telemetry:")
     print(f"   Network Load: {inputs['network_load']:.2f} ({inputs['network_load']*100:.0f}%)")
@@ -42,14 +45,12 @@ def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
     print(f"   Budget Utilization: {inputs['budget_utilization']:.2f} ({inputs['budget_utilization']*100:.0f}%)")
     print(f"   Recent Win Rate: {inputs['recent_win_rate']:.3f} ({inputs['recent_win_rate']*100:.1f}%)")
     print(f"{'='*60}\n")
-    
-    # ML decision with real telemetry
+
+    # Run ML decision
     prob_p_win, explanation = decide_probability(inputs, telemetry=inputs)
-    
-    # Generate cryptographic ticket
+
     ticket_dict, secret = generate_ticket(request.value, "recipient@upi", prob_p_win)
 
-    # Store in database
     db_ticket = models.Ticket(
         ticket_id=ticket_dict["ticket_id"],
         value=ticket_dict["value"],
@@ -61,11 +62,13 @@ def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
     )
     db.add(db_ticket)
     db.add(models.Secret(ticket_id=db_ticket.ticket_id, secret=secret))
-    
-    # Store explanation with timestamp
-    explanation['timestamp'] = datetime.utcnow().isoformat()
-    explanation['telemetry'] = inputs
-    db.add(models.DecisionLog(ticket_id=db_ticket.ticket_id, explanation=json.dumps(explanation)))
+
+    # Ensure explanation is fully JSON serializable
+    explanation["timestamp"] = datetime.now(timezone.utc).isoformat()
+    explanation["telemetry"] = inputs
+
+    serialized_explanation = json.dumps(explanation, default=str)
+    db.add(models.DecisionLog(ticket_id=db_ticket.ticket_id, explanation=serialized_explanation))
     db.commit()
 
     # Append to docs log
@@ -75,28 +78,25 @@ def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
         existing = json.load(open(log_path)) if os.path.exists(log_path) else []
     except Exception:
         existing = []
-    
+
     existing.append({
         "ticket_id": db_ticket.ticket_id,
         "value": db_ticket.value,
         "telemetry": inputs,
         "prob_p_win": prob_p_win,
         "explanation": explanation,
-        "timestamp": explanation.get("timestamp")
+        "timestamp": explanation["timestamp"]
     })
-    
+
     with open(log_path, "w") as f:
-        json.dump(existing, f, indent=4)
+        json.dump(existing, f, indent=4, default=str)
 
     # Build rationale
     rationale = ""
     if isinstance(explanation, dict):
         steps = explanation.get("steps", [])
         if steps:
-            try:
-                rationale = "; ".join(str(s.get("effect", "")) for s in steps if s)
-            except Exception:
-                rationale = ""
+            rationale = "; ".join(str(s.get("effect", "")) for s in steps if s)
         else:
             fi = explanation.get("feature_importance", {})
             if isinstance(fi, dict) and fi:
@@ -122,7 +122,6 @@ def issue_ticket(request: TicketRequest, db: Session = Depends(get_db)):
             "telemetry": inputs
         }
     }
-# ... rest of your endpoints remain the same ...
 
 @app.post("/redeem_ticket")
 def redeem_ticket(ticket_id: str, preimage: str, db: Session = Depends(get_db)):
@@ -280,7 +279,7 @@ def get_current_telemetry(db: Session = Depends(get_db)):
     summary = telemetry_service.get_telemetry_summary()
     
     return {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "metrics": metrics,
         "summary": summary
     }

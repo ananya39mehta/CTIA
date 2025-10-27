@@ -1,0 +1,18 @@
+{
+  "best_model": "linear_regression",
+  "rmse": 0.053095199861503815,
+  "mae": 0.045854043868067504,
+  "r2": 0.030976043292554656,
+  "cv_r2": -0.008186327096681456,
+  "timestamp": "2025-10-27T09:17:05.417585",
+  "n_samples": 500,
+  "explain": {
+    "method": "shap",
+    "feature_importance": {
+      "network_load": 0.004297787733279717,
+      "relay_reputation": 0.0037954678048953343,
+      "budget_utilization": 0.004481972263453275,
+      "recent_win_rate": 0.0010881802994111465
+    }
+  }
+}
