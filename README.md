@@ -49,7 +49,7 @@ E -->|"/issue_ticket"| F["Ticket Issuance"]
 E -->|"/redeem_ticket"| G["Redemption Validation"]
 E -->|"/explain_ticket_visual"| H["Explainability Dashboard"]
 H -->|"HTML/Plot Output"| I["User Interface"]
-
+```
 ---
 
 ## 📂 Project Structure
