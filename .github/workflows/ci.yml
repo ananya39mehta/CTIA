@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [spectra, main, develop ]
+    branches: [ spectra, main, develop ]
   pull_request:
-    branches: [spectra, main, develop ]
+    branches: [ spectra, main, develop ]
 
 jobs:
   test:

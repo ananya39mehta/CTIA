@@ -4,7 +4,7 @@ Real Telemetry Service for CTIA
 Provides dynamic system metrics for ML decision-making
 """
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -19,7 +19,9 @@ class TelemetryService:
     def __init__(self, db: Session, simulation_mode: bool = True):
         self.db = db
         self.simulation_mode = simulation_mode
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(UTC)
+
+
     
     def get_all_metrics(self) -> Dict[str, float]:
         """Get all telemetry metrics at once"""
@@ -50,7 +52,7 @@ class TelemetryService:
         try:
             active_tickets = self.db.query(Ticket)\
                 .filter(Ticket.status == "issued")\
-                .filter(Ticket.created_at > datetime.utcnow() - timedelta(minutes=5))\
+                .filter(Ticket.created_at > datetime.now(UTC) - timedelta(minutes=5))\
                 .count()
             
             # Normalize: assume 100 concurrent tickets = high load
@@ -81,7 +83,7 @@ class TelemetryService:
         # Production code (example):
         try:
             # Query successful vs total redemptions
-            week_ago = datetime.utcnow() - timedelta(days=7)
+            week_ago = datetime.now(UTC) - timedelta(days=7)
             total = self.db.query(Redemption)\
                 .filter(Redemption.redeemed_at > week_ago)\
                 .count()
@@ -120,7 +122,7 @@ class TelemetryService:
         try:
             DAILY_BUDGET = 10000  # $10,000 daily limit (configure as needed)
             
-            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             
             # Sum value of all winning tickets redeemed today
             spent = self.db.query(func.sum(Ticket.value))\
@@ -178,7 +180,7 @@ class TelemetryService:
         - Lower during night/early morning
         - Random fluctuations
         """
-        current_hour = datetime.utcnow().hour
+        current_hour = datetime.now(UTC).hour
         
         # Base load by time of day
         if 9 <= current_hour <= 17:  # Business hours
@@ -215,7 +217,7 @@ class TelemetryService:
         - Increases throughout day
         - Resets at midnight
         """
-        elapsed_seconds = (datetime.utcnow() - self.start_time).total_seconds()
+        elapsed_seconds = (datetime.now(UTC) - self.start_time).total_seconds()
         
         # Simulate daily cycle (24 hours)
         daily_progress = (elapsed_seconds % 86400) / 86400

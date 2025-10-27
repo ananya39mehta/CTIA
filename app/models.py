@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from .db import Base
-from datetime import datetime
+from datetime import datetime,timezone, UTC
 from sqlalchemy import Text
 import json
 class Ticket(Base):
@@ -37,18 +37,15 @@ class Redemption(Base):
 
     ticket = relationship("Ticket", back_populates="redemptions")
 
-
-
 class DecisionLog(Base):
     __tablename__ = "decision_logs"
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(String, ForeignKey("tickets.ticket_id"), nullable=True, index=True)
-    decision_time = Column(DateTime, default=datetime.utcnow)
-    explanation = Column(Text, nullable=False)  # store JSON string
+    decision_time = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    explanation = Column(Text, nullable=False)
 
-    # optional relationship back to ticket
     ticket = relationship("Ticket", back_populates="decision_logs")
 
-# add relationship on Ticket
+# Ensure Ticket model has the relationship
 if not hasattr(Ticket, "decision_logs"):
     Ticket.decision_logs = relationship("DecisionLog", back_populates="ticket", cascade="all, delete-orphan")
