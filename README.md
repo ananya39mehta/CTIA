@@ -1,7 +1,13 @@
 # 🔐 CTIA — Cryptographic Ticket Issuer Agent (Prototype)
 
-This project implements a **Cryptographic Ticket Issuer Agent (CTIA)** that issues and redeems secure, verifiable micropayment tickets.  
-It is a **research prototype** designed for evaluating cryptographic ticketing mechanisms in micropayment systems.  
+## 🌍 Overview
+
+**CTIA v2** simulates a **trustless micropayment ecosystem** where each transaction (a “ticket”) is assigned a *dynamic winning probability* using **Explainable AI (XAI)** models trained on **system telemetry**.
+
+This project demonstrates how **AI-driven probability models** can:
+- Adjust in real time based on system conditions  
+- Explain each decision transparently using SHAP and visual reasoning  
+- Support ethical, auditable, and secure decision-making  
 
 Each ticket contains:
 - 🆔 Unique ticket identifier  
@@ -18,29 +24,68 @@ The system supports:
 
 ---
 
+## 🎯 Objectives
+
+| Goal | Description |
+|------|--------------|
+| **1. Explainable Probability Modeling** | Build an interpretable ML system for win/loss prediction using telemetry. |
+| **2. Realistic System Simulation** | Generate telemetry data representing network, budget, and reputation. |
+| **3. Trustless Micropayment Logic** | Use cryptographic hash locks for ticket issuance and redemption. |
+| **4. Ethical AI Governance** | Maintain full auditability of every AI decision. |
+| **5. Integration & Testing** | Provide reproducible code, datasets, and automated testing suite. |
+
+---
+
+## 🧩 System Architecture
+
+```mermaid
+flowchart TD
+
+A["Telemetry Simulation"] -->|"Network Load, Budget, Reputation, Win Rate"| B["ML Model"]
+B -->|"Predicts Win Probability"| C["Explainable AI (SHAP)"]
+C -->|"Feature Importance + Visuals"| D["Decision Log"]
+D -->|"Stores JSON Log + Plot"| E["FastAPI App"]
+E -->|"/issue_ticket"| F["Ticket Issuance"]
+E -->|"/redeem_ticket"| G["Redemption Validation"]
+E -->|"/explain_ticket_visual"| H["Explainability Dashboard"]
+H -->|"HTML/Plot Output"| I["User Interface"]
+
+---
+
 ## 📂 Project Structure
 
 ```text
 ctia/
-│── app/                # Core FastAPI app (main.py, schema.py, crypto.py)
-│   │── __init__.py
-│   │── main.py         # FastAPI entrypoint (issue/redeem endpoints)
-│   │── schema.py       # Pydantic models for ticket structure
-│   │── crypto.py       # Ed25519 signing & verification helpers
 │
-│── tests/              # Unit & end-to-end tests
-│   │── test_end2end.py
+├── app/
+│   ├── main.py                  # FastAPI API endpoints
+│   ├── models.py                # SQLAlchemy ORM models
+│   ├── crypto/                  # Cryptographic ticket generation & verification
+│   ├── agent_ml.py              # ML model loading, inference, SHAP explainability
+│   ├── telemetry.py             # Telemetry simulation (network, reputation, budget)
+│   └── db.py                    # Database initialization
 │
-│── secrets/            # Auto-generated keys (ed25519_sk.hex, ed25519_pk.hex)
+├── data/
+│   ├── raw/                     # Simulated telemetry data
+│   └── processed/               # Cleaned datasets for model training
 │
-│── ctia_fsm.dot        # FSM definition (Graphviz source)
-│── fsm.png             # Rendered FSM diagram
-│── requirements.txt    # Python dependencies (frozen)
-│── Dockerfile          # Container definition
-│── docker-compose.yml  # Compose setup for local dev
-│── setup.sh            # Quick setup script
-│── README.md           # Documentation
-│── LICENSE             # MIT License
+├── models/                      # Trained ML models (.pkl)
+│
+├── notebooks/
+│   ├── eda_and_train.ipynb      # EDA + model training notebook
+│
+├── tests/
+│   ├── test_end2end.py          # Tests issue→redeem→explain flow
+│   ├── test_training_pipeline.py
+│
+├── docs/
+│   ├── shap_explanations/       # Stored SHAP plots for explainability
+│   ├── decisions_log.json       # Decision audit trail
+│
+├── requirements.txt
+├── LICENSE
+└── README.md
+
 
 ```
 ---
@@ -50,12 +95,18 @@ ctia/
 Clone the repository:
 
 ```bash
-git clone https://github.com/ctia-project/ctia.git
+git clone https://github.com/ananya39mehta/CTIA.git
 cd ctia
-
 ./setup.sh
-
 uvicorn app.main:app --reload --port 8000
 
-docker-compose up --build
+```
+| Task                         | Command                                          |
+| ---------------------------- | ------------------------------------------------ |
+| Initialize database          | `PYTHONPATH=. python app/db_init.py`             |
+| Run app                      | `uvicorn app.main:app --reload`                  |
+| Run tests                    | `PYTHONPATH=. pytest -v tests/`                  |
+| Train model                  | `PYTHONPATH=. python notebooks/eda_and_train.py` |
+| Generate SHAP explainability | `python app/agent_ml.py`                         |
+
 
