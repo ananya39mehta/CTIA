@@ -67,7 +67,7 @@ ctia/
 │
 ├── data/
 │   ├── raw/                     # Simulated telemetry data
-│   └── processed/               # Cleaned datasets for model training
+│   └── processed/               # Cleaned datasets for model training- to be done 
 │
 ├── models/                      # Trained ML models (.pkl)
 │
